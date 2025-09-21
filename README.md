@@ -17,7 +17,6 @@
 ## 📋 Table of Contents
 
 - [🎯 Overview](#-overview)
-- [🏗️ Architecture](#️-architecture)
 - [🧠 Core Subsystems](#-core-subsystems)
 - [🔧 Key Features](#-key-features)
 - [🚀 Technology Stack](#-technology-stack)
