@@ -44,30 +44,7 @@ EntreaseAI is a comprehensive enterprise-grade invoice processing system that le
 - 👥 **Team Collaboration** - Organization management and user roles
 - 💳 **Subscription Management** - Stripe-powered billing and payments
 
----
 
-## 🏗️ Architecture
-
-```mermaid
-graph TB
-    A[User Upload] --> B[Document Classification]
-    B --> C[AI Text Extraction]
-    C --> D[Fuzzy Matching Engine]
-    D --> E[Accounting Integration]
-    E --> F[Bill Creation]
-    F --> G[Notification System]
-    
-    H[Email Listener] --> I[Webhook Processing]
-    I --> B
-    
-    J[Authentication] --> K[Organization Management]
-    K --> L[User Onboarding]
-    
-    M[Payment System] --> N[Subscription Management]
-    N --> O[Access Control]
-```
-
----
 
 ## 🧠 Core Subsystems
 
