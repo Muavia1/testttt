@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**Enterprise-Grade AI-Powered Invoice Processing System**
+**EntreaseAI- AI Invoice Processing System**
 
 *Transform your accounting workflow with intelligent document processing, fuzzy matching algorithms, and seamless accounting integrations*
 
