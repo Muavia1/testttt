@@ -21,10 +21,6 @@
 - [🔧 Key Features](#-key-features)
 - [🚀 Technology Stack](#-technology-stack)
 - [📁 Project Structure](#-project-structure)
-- [⚡ Quick Start](#-quick-start)
-- [🔒 Security & Compliance](#-security--compliance)
-- [📊 Performance](#-performance)
-- [🤝 Contributing](#-contributing)
 
 ---
 
