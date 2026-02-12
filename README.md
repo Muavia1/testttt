@@ -1,317 +1,128 @@
-# 🚀 EntreaseAI
 
-<div align="center">
-
-**EntreaseAI- AI Invoice Processing System**
-
-
-[![Next.js](https://img.shields.io/badge/Next.js-15.2.4-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green?style=for-the-badge&logo=supabase)](https://supabase.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o-purple?style=for-the-badge&logo=openai)](https://openai.com/)
-
-</div>
+Here’s a copy-paste spec you can give your backend engineer.
 
 ---
 
-## 📋 Table of Contents
+# Backend: Job application statuses – update flow
 
-- [🎯 Overview](#-overview)
-- [🧠 Core Subsystems](#-core-subsystems)
-- [🔧 Key Features](#-key-features)
-- [🚀 Technology Stack](#-technology-stack)
-- [📁 Project Structure](#-project-structure)
+## 1. Database & model
 
----
+**Table:** `job`  
+**New column:**
 
-## 🎯 Overview
+| Column name        | Type   | Nullable | Default value |
+|--------------------|--------|----------|----------------|
+| `applicationStatuses` or `statuses` | JSON   | **NO**   | `["shortlisted", "screening", "interview", "offered", "rejected"]` |
 
-EntreaseAI is a comprehensive enterprise-grade invoice processing system that leverages cutting-edge AI, fuzzy logic algorithms, and advanced matching techniques to automatically process invoices and integrate them with popular accounting systems like QuickBooks and Xero.
+- **Type:** JSON array of strings.
+- **Nullable:** `false` — every job must have a value.
+- **Default:** Exactly  
+  `["shortlisted", "screening", "interview", "offered", "rejected"]`
 
-### ✨ Key Capabilities
+**Migration:**
 
-- 🤖 **AI-Powered Processing** - GPT-4o Vision for document classification and data extraction
-- 🎯 **Fuzzy Matching** - Intelligent account, vendor, and tax code matching
-- 📧 **Email Integration** - Automated email listening and notification system
-- 💼 **Multi-Provider Support** - QuickBooks, Xero, and extensible architecture
-- 🔐 **Enterprise Security** - SOC 2 Type II compliance, RLS, audit logging
-- 👥 **Team Collaboration** - Organization management and user roles
-- 💳 **Subscription Management** - Stripe-powered billing and payments
+- Add the column with the default above.
+- Backfill existing rows so no row is null (e.g. set default for all existing jobs when adding the column, or `UPDATE job SET applicationStatuses = default_value WHERE applicationStatuses IS NULL`).
 
+**Model (e.g. Sequelize):**
 
-
-## 🧠 Core Subsystems
-
-### 🤖 AI Processing Pipeline
-**Location**: `lib/invoice-extractor.ts` | `lib/accounting/matching/ai_recommendations.ts`
-
-| Component | File | Description |
-|-----------|------|-------------|
-| **Document Classification** | `app/api/classify-and-process-document/route.ts` | GPT-4o Vision classification |
-| **Text Extraction** | `lib/invoice-extractor.ts` | PDF parsing with OCR fallback |
-| **AI Structuring** | `structureInvoiceDataFromTextAI()` | GPT-4o data extraction |
-| **Image Processing** | `lib/image-extractor.ts` | Multi-format image support |
-
-### 🎯 Fuzzy Logic & Matching
-**Location**: `lib/accounting/matching/`
-
-| Algorithm | File | Technology |
-|-----------|------|------------|
-| **Account Matching** | `account_matcher.ts` | Fuzzball + GPT (50/50) |
-| **Vendor Matching** | `vendor_matcher.ts` | Email + Name similarity |
-| **Tax Code Matching** | `tax_code_matcher.ts` | Intelligent mapping |
-| **AI Recommendations** | `ai_recommendations.ts` | Context-aware suggestions |
-
-### 📧 Email & Notifications
-**Location**: `lib/email-service.ts` | `lib/accounting/services/notification.service.ts`
-
-| Service | File | Features |
-|---------|------|----------|
-| **Email Service** | `lib/email-service.ts` | SendGrid integration |
-| **Notification Service** | `notification.service.ts` | Rate limiting, audit logging |
-| **Webhook Handlers** | `app/api/webhooks/stripe/route.ts` | Event processing |
-
-### 💼 Accounting Integrations
-**Location**: `lib/accounting/`
-
-| Provider | Directory | Features |
-|----------|-----------|----------|
-| **QuickBooks** | `lib/accounting/quickbooks/` | OAuth 2.0, Bill creation |
-| **Xero** | `lib/accounting/xero/` | API integration, Sync |
-| **Adapter Factory** | `adapters/adapter-factory.ts` | Unified interface |
-| **Provider Data** | `services/provider-data.service.ts` | Data synchronization |
-
-### 🔐 Security & Authentication
-**Location**: `middleware.ts` | `lib/auth.ts` | `utils/validation/`
-
-| Component | File | Security Features |
-|-----------|------|-------------------|
-| **Middleware** | `middleware.ts` | Supabase SSR, Route protection |
-| **API Security** | `utils/validation/api-validation.ts` | Rate limiting, Validation |
-| **Database Security** | `scripts/*.sql` | RLS policies, User isolation |
-| **Client Auth** | `lib/client-auth.ts` | Session management |
-
-### 🗄️ Database Layer
-**Location**: `lib/supabase/` | `scripts/`
-
-| Component | Description |
-|-----------|-------------|
-| **Supabase Client** | PostgreSQL with real-time subscriptions |
-| **Database Scripts** | Automated migrations and schema updates |
-| **Key Tables** | `users`, `ai_analysis_history`, `notification_tracking`, `audit_log` |
-
-### 🖥️ Frontend Dashboard
-**Location**: `app/dashboard/` | `components/`
-
-| Page | File | Features |
-|------|------|----------|
-| **Main Dashboard** | `app/dashboard/page.tsx` | Real-time stats, Analysis history |
-| **Invoice Processing** | `app/invoice-processing/` | File upload, Status tracking |
-| **UI Components** | `components/ui/` | Radix UI + Tailwind design system |
-
-### ⚙️ Workflow Orchestration
-**Location**: `lib/accounting/services/workflow-orchestrator.service.ts`
-
-**Processing Pipeline**:
-1. 📄 **PDF Processing** - Upload, extract, validate
-2. 🔍 **Provider Data Fetch** - Get accounts, vendors, tax codes
-3. 🤖 **AI Analysis** - Generate recommendations
-4. ✅ **Validation** - Business rule validation
-5. 📋 **Bill Creation** - Create bill in accounting system
-6. 📧 **Notification** - Send success/failure emails
-
-**Error Handling**:
-- 🔄 Circuit breaker pattern
-- ⏱️ Retry logic with exponential backoff
-- 📊 Comprehensive logging and monitoring
-
-### 🌐 API Layer
-**Location**: `app/api/`
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/classify-and-process-document` | POST | Document processing |
-| `/api/auth/callback` | POST | OAuth callbacks |
-| `/api/webhooks/stripe` | POST | Payment webhooks |
-| `/api/organization-invites` | GET/POST | Team management |
-
-### 📊 Monitoring & Logging
-**Location**: `lib/logger.ts` | `lib/metrics.ts`
-
-| Component | File | Purpose |
-|-----------|------|---------|
-| **Winston Logger** | `lib/logger.ts` | Structured logging |
-| **Metrics Collection** | `lib/metrics.ts` | Performance monitoring |
-| **Health Checks** | `lib/health-check.ts` | System health |
-| **Circuit Breaker** | `lib/circuit-breaker.ts` | Fault tolerance |
-
-### 📄 File Processing
-**Location**: `lib/`
-
-| Service | File | Purpose |
-|---------|------|---------|
-| **Invoice Storage** | `lib/invoice-storage.ts` | File management |
-| **Convertio API** | `lib/convertio-api.ts` | PDF conversion |
-| **Image Extractor** | `lib/image-extractor.ts` | OCR processing |
-
-### 💳 Payment Processing
-**Location**: `lib/stripe.ts` | `components/` | `app/api/`
-
-| Component | File | Features |
-|-----------|------|----------|
-| **Stripe Integration** | `lib/stripe.ts` | Payment processing |
-| **Checkout Sessions** | `app/api/checkout_sessions/route.ts` | Subscription creation |
-| **Subscription Management** | `app/api/cancel-subscription/route.ts` | Cancellation handling |
-| **UI Components** | `components/UpgradeButton.tsx` | Payment interface |
-
-### 👥 Organization & Team Management
-**Location**: `utils/helpers/organization.ts` | `components/` | `hooks/`
-
-| Component | File | Features |
-|-----------|------|----------|
-| **Organization Helpers** | `utils/helpers/organization.ts` | Core organization logic |
-| **Organization Hook** | `hooks/use-organization.ts` | React state management |
-| **Organization UI** | `components/organization-section.tsx` | Team management interface |
-| **Invite Management** | `app/api/organization-invites/route.ts` | Team invitations |
-
-### 🚀 User Onboarding
-**Location**: `app/onboarding/` | `app/select-provider/` | `components/`
-
-| Step | File | Purpose |
-|------|------|---------|
-| **Email Provider Setup** | `app/onboarding/email-provider/page.tsx` | Email configuration |
-| **Gmail Setup** | `app/onboarding/gmail-setup/page.tsx` | Gmail integration |
-| **Provider Selection** | `app/select-provider/page.tsx` | Accounting provider choice |
-| **Invoice Upload** | `app/onboarding/invoice-upload/page.tsx` | First invoice processing |
-
-### 🔐 Authentication & User Management
-**Location**: `app/auth/` | `components/` | `lib/`
-
-| Component | File | Features |
-|-----------|------|----------|
-| **Login/Signup** | `app/auth/login/page.tsx` | User authentication |
-| **Auth Components** | `components/login-form.tsx` | Form interfaces |
-| **Auth Actions** | `lib/actions.ts` | Authentication logic |
-| **Client Auth** | `lib/client-auth.ts` | Client-side auth |
-
-### 📋 Bill Creation Service
-**Location**: `lib/accounting/services/bill-creation.service.ts`
-
-| Feature | Description |
-|---------|-------------|
-| **Bill Creation** | Provider-specific bill creation logic |
-| **Validation** | Business rule validation |
-| **Error Handling** | Comprehensive error management |
-
-### 🛠️ Utility Services
-**Location**: `utils/` | `lib/`
-
-| Service | File | Purpose |
-|---------|------|---------|
-| **Validation** | `utils/validation/` | Input validation schemas |
-| **Helpers** | `utils/helpers/` | Utility functions |
-| **Enterprise Utils** | `utils/enterprise/` | Enterprise features |
-| **Redis** | `lib/redis.ts` | Caching layer |
-| **Distributed Lock** | `lib/distributed-lock.ts` | Concurrency control |
-
-### ⚙️ Configuration & Types
-**Location**: `lib/config/` | `types/`
-
-| Component | File | Purpose |
-|-----------|------|---------|
-| **Provider Config** | `lib/config/providers.ts` | Provider configurations |
-| **Type Definitions** | `types/` | TypeScript interfaces |
-| **Enterprise Types** | `types/enterprise.ts` | Enterprise-specific types |
+- Add attribute for this column.
+- `allowNull: false`
+- `defaultValue: ["shortlisted", "screening", "interview", "offered", "rejected"]`
+- Ensure create/read paths use this so all jobs (new and existing) always have this field set.
 
 ---
 
-## 🔧 Key Features
+## 2. Existing API: include statuses in job details
 
-### 🤖 AI-Powered Intelligence
-- **Document Classification** - Distinguish between invoices, receipts, and expenses
-- **Text Extraction** - Advanced PDF parsing with OCR fallback
-- **Data Structuring** - Extract vendor, line items, totals, and tax codes
-- **Fuzzy Matching** - Intelligent account and vendor matching algorithms
+**API:** `viewJobPost`  
+**Request:** `{ jobId: <number> }` (or existing equivalent).  
+**Response:** Existing job object **plus** a top-level field for the status list.
 
-### 💼 Accounting Integration
-- **Multi-Provider Support** - QuickBooks, Xero with extensible architecture
-- **OAuth 2.0 Authentication** - Secure provider connections
-- **Real-time Sync** - Automatic data synchronization
-- **Bill Creation** - Seamless invoice-to-bill conversion
+- Add to the job object returned:
+  - **Field name:** `statuses` (or `applicationStatuses` — must match what frontend expects).
+  - **Value:** The job’s `applicationStatuses` (or `statuses`) column — array of strings, e.g.  
+    `["shortlisted", "screening", "interview", "offered", "rejected"]`  
+    or the same list with extra values like `"technical_interview"` if the recruiter added them.
 
-### 🔐 Enterprise Security
-- **SOC 2 Type II Compliance** - Industry-standard security controls
-- **Row Level Security** - Database-level access control
-- **Audit Logging** - Comprehensive activity tracking
-- **Rate Limiting** - API and notification throttling
-
-### 👥 Team Collaboration
-- **Organization Management** - Multi-user team support
-- **Role-based Access** - Granular permission control
-- **Invite System** - Seamless team member onboarding
-- **User Onboarding** - Guided setup process
+No change to auth or other request/response fields; only add this field to the job payload.
 
 ---
 
-## 🚀 Technology Stack
+## 3. New API: update job application statuses
 
-### Frontend
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Next.js** | 15.2.4 | React framework with App Router |
-| **React** | 19 | UI library with hooks |
-| **TypeScript** | 5.3.3 | Type safety and development experience |
-| **Tailwind CSS** | 3.4.17 | Utility-first CSS framework |
-| **Radix UI** | Latest | Accessible component primitives |
+**Purpose:** Recruiter can change the list of application statuses for a job (e.g. add “Technical Interview”, “Second Interview”). Backend replaces the job’s status list with the one sent.
 
-### Backend
-| Technology | Purpose |
-|------------|---------|
-| **Node.js** | JavaScript runtime |
-| **PostgreSQL** | Primary database (via Supabase) |
-| **Redis** | Caching and session storage |
-| **Winston** | Structured logging |
+**Endpoint name (suggestion):** `updateJobApplicationStatuses` or `updateJobStatuses`.
 
-### AI & Processing
-| Technology | Purpose |
-|------------|---------|
-| **OpenAI GPT-4o** | Document analysis and data extraction |
-| **OpenAI GPT-4o Vision** | Image-based document classification |
-| **Fuzzball** | String similarity and fuzzy matching |
-| **pdf2json** | PDF text extraction |
-| **Convertio API** | PDF to image conversion |
+**Request:**
 
-### Integrations
-| Service | Purpose |
-|---------|---------|
-| **QuickBooks** | Accounting system integration |
-| **Xero** | Accounting system integration |
-| **SendGrid** | Email delivery service |
-| **Stripe** | Payment processing |
-| **Supabase** | Backend-as-a-Service |
+- **Method:** POST (or PUT/PATCH if that’s your convention).
+- **Body (e.g. JSON):**
+  - `jobId` (number, required) — job to update.
+  - `statuses` (array of strings, required) — new full list of statuses.  
+    Example:  
+    `["shortlisted", "screening", "interview", "offered", "rejected", "technical_interview"]`
+
+**Validation:**
+
+- `jobId` must exist and belong to the authenticated user (or company).
+- `statuses` must be a non-empty array of strings (no null/undefined entries).
+- Optional: max length for the array (e.g. 20) and for each string (e.g. 50 chars).
+
+**Behaviour:**
+
+1. Resolve job by `jobId`, check ownership.
+2. Replace the job’s `applicationStatuses` (or `statuses`) column with the received `statuses` array.
+3. Return success (and optionally the updated job object including `statuses`).
+
+**Response (example):**
+
+- Success: e.g. `{ status: 200, data: { success: true } }` or return updated job with `statuses`.
+- Errors: 4xx for invalid `jobId`, unauthorized, or invalid `statuses`.
 
 ---
 
-## 📁 Project Structure
+## 4. Flow summary
 
-```
-entreaseai/
-├── 📱 app/                          # Next.js App Router
-│   ├── 🔌 api/                      # API Routes & Webhooks
-│   ├── 🔐 auth/                     # Authentication Pages
-│   ├── 📊 dashboard/                # Main Dashboard
-│   ├── 🚀 onboarding/               # User Onboarding
-│   └── 📄 invoice-processing/       # Invoice Processing UI
-├── 🧩 components/                   # React Components
-│   ├── 🎨 ui/                       # Reusable UI Components
-│   └── ⚡ [feature-components]      # Feature-specific Components
-├── 📚 lib/                          # Core Business Logic
-│   ├── 💼 accounting/               # Accounting Provider Integrations
-│   ├── 🗄️ supabase/                 # Database Layer
-│   └── 🔧 [core-services]           # Core Services
-├── 🛠️ utils/                        # Utility Functions
-├── 🎣 hooks/                        # React Hooks
-├── 📝 types/                        # TypeScript Definitions
-└── 📜 scripts/                      # Database Scripts & Migrations
+| Step | Action |
+|------|--------|
+| 1 | Add `applicationStatuses` (or `statuses`) column to `job`: JSON, NOT NULL, default `["shortlisted", "screening", "interview", "offered", "rejected"]`. Backfill existing rows. |
+| 2 | In **viewJobPost** response, include this field (e.g. as `statuses`) in the job object so every job details response has a status list. |
+| 3 | New API **updateJobApplicationStatuses**: accept `jobId` + `statuses` (array of strings); validate; update job’s status list; return success (and optionally updated job). |
+
+---
+
+## 5. Example payloads
+
+**viewJobPost response (snippet):**
+
+```json
+{
+  "jobId": 123,
+  "jobtitle": "...",
+  "statuses": ["shortlisted", "screening", "interview", "offered", "rejected"]
+}
 ```
 
+After recruiter adds “Technical Interview” and frontend calls the new API:
+
+**updateJobApplicationStatuses request:**
+
+```json
+{
+  "jobId": 123,
+  "statuses": ["shortlisted", "screening", "interview", "offered", "rejected", "technical_interview"]
+}
+```
+
+**updateJobApplicationStatuses response (example):**
+
+```json
+{
+  "status": 200,
+  "data": { "success": true }
+}
+```
+
+You can share this document as-is with your backend engineer; they can implement the migration, viewJobPost change, and the new update API from it.
