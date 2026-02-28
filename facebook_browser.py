@@ -2,8 +2,8 @@
 Browser automation using HyperBrowser (Browser Use agent + Scrape API).
 
 - Without profile: Browser Use task = login at TARGET_URL + optional steps.
-- With profile: Scrape TARGET_URL1 with the profile (logged-in session), save full page
-  content to files for later planning of what to properly scrape.
+- With profile: Scrape TARGET_URL1 with the profile (logged-in session), save HTML for
+  inspection, then extract listings and save a listings JSON file.
 
 Usage:
   python facebook_browser.py              # Start task (non-blocking) or run scrape
@@ -15,12 +15,13 @@ Usage:
   TARGET_URL1 (page to scrape when profile set; default: Facebook Marketplace vehicles)
   LOGIN_EMAIL or FACEBOOK_EMAIL, LOGIN_PASSWORD or FACEBOOK_PASSWORD (when no profile)
   HYPERBROWSER_FACEBOOK_PROFILE_ID or PROFILE_ID (optional; leave empty for first run)
-  SCRAPE_OUTPUT_DIR (optional; directory to save scrape files; default: current directory)
+  SCRAPE_OUTPUT_DIR (optional; directory for listings JSON; default: current directory)
 """
 
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +60,164 @@ SCRAPE_OUTPUT_DIR = os.getenv("SCRAPE_OUTPUT_DIR", ".").strip()
 
 # Optional JSON array of extra steps, e.g. STEPS='["Go to dashboard", "Open settings"]'
 STEPS_JSON = os.getenv("STEPS", "[]").strip()
+
+LISTING_BASE_URL = "https://www.facebook.com/marketplace/item/"
+
+
+def _find_marketplace_feed_units(obj):
+    """Recursively find the feed_units.edges array in parsed JSON."""
+    if isinstance(obj, dict):
+        if "marketplace_search" in obj:
+            ms = obj["marketplace_search"]
+            if isinstance(ms, dict) and "feed_units" in ms:
+                fu = ms["feed_units"]
+                if isinstance(fu, dict) and "edges" in fu:
+                    return fu["edges"]
+        for v in obj.values():
+            found = _find_marketplace_feed_units(v)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_marketplace_feed_units(item)
+            if found is not None:
+                return found
+    return None
+
+
+def _listing_from_node(node):
+    """Build a flat listing dict from a feed edge node (node.listing)."""
+    listing = node.get("listing") if isinstance(node, dict) else None
+    if not listing or not isinstance(listing, dict):
+        return None
+
+    listing_id = listing.get("id")
+    if not listing_id:
+        return None
+
+    location = ""
+    loc = listing.get("location") or {}
+    if isinstance(loc, dict):
+        rg = loc.get("reverse_geocode") or {}
+        if isinstance(rg, dict):
+            city_page = rg.get("city_page") or {}
+            if isinstance(city_page, dict) and city_page.get("display_name"):
+                location = city_page["display_name"]
+            else:
+                city = rg.get("city") or ""
+                state = rg.get("state") or ""
+                location = f"{city}, {state}".strip(", ") if city or state else ""
+
+    price_obj = listing.get("listing_price") or {}
+    price = price_obj.get("formatted_amount", "") if isinstance(price_obj, dict) else ""
+
+    seller_obj = listing.get("marketplace_listing_seller") or {}
+    seller_name = seller_obj.get("name", "") if isinstance(seller_obj, dict) else ""
+
+    subtitle = ""
+    sub_titles = listing.get("custom_sub_titles_with_rendering_flags") or []
+    if isinstance(sub_titles, list) and sub_titles and isinstance(sub_titles[0], dict):
+        subtitle = sub_titles[0].get("subtitle") or ""
+
+    return {
+        "listing_url": f"{LISTING_BASE_URL}{listing_id}/",
+        "listing_id": str(listing_id),
+        "name": listing.get("marketplace_listing_title") or listing.get("custom_title") or "",
+        "location": location,
+        "price": price,
+        "seller_name": seller_name,
+        "subtitle": subtitle,
+    }
+
+
+def _find_marketplace_feed_stories_edges(obj):
+    """Recursively find marketplace_feed_stories.edges (new FB Marketplace HTML structure)."""
+    if isinstance(obj, dict):
+        if "marketplace_feed_stories" in obj:
+            mfs = obj["marketplace_feed_stories"]
+            if isinstance(mfs, dict) and "edges" in mfs:
+                return mfs["edges"]
+        for v in obj.values():
+            found = _find_marketplace_feed_stories_edges(v)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_marketplace_feed_stories_edges(item)
+            if found is not None:
+                return found
+    return None
+
+
+def _extract_listings_feed_stories(html: str, seen_ids: set) -> list[dict]:
+    """Fallback: extract from viewer.marketplace_feed_stories.edges (new HTML structure)."""
+    script_pattern = re.compile(
+        r'<script\s+type=["\']application/json["\'][^>]*>(.*?)</script>',
+        re.DOTALL | re.IGNORECASE,
+    )
+    out = []
+    for match in script_pattern.finditer(html):
+        blob = match.group(1).strip()
+        if "marketplace_feed_stories" not in blob:
+            continue
+        try:
+            data = json.loads(blob)
+        except json.JSONDecodeError:
+            continue
+        edges = _find_marketplace_feed_stories_edges(data)
+        if not edges or not isinstance(edges, list):
+            continue
+        for edge in edges:
+            if not isinstance(edge, dict):
+                continue
+            node = edge.get("node")
+            listing = node.get("listing") if isinstance(node, dict) else None
+            if not listing or not isinstance(listing, dict):
+                continue
+            record = _listing_from_node({"listing": listing})
+            if record and record["listing_id"] not in seen_ids:
+                seen_ids.add(record["listing_id"])
+                out.append(record)
+    return out
+
+
+def extract_listings_from_html(html: str) -> list[dict]:
+    """Parse HTML for marketplace listings. Tries feed_units first, then marketplace_feed_stories."""
+    script_pattern = re.compile(
+        r'<script\s+type=["\']application/json["\'][^>]*>(.*?)</script>',
+        re.DOTALL | re.IGNORECASE,
+    )
+    listings = []
+    seen_ids = set()
+
+    for match in script_pattern.finditer(html):
+        blob = match.group(1).strip()
+        if "marketplace_search" not in blob or "feed_units" not in blob:
+            continue
+        try:
+            data = json.loads(blob)
+        except json.JSONDecodeError:
+            continue
+
+        edges = _find_marketplace_feed_units(data)
+        if not edges or not isinstance(edges, list):
+            continue
+
+        for edge in edges:
+            if not isinstance(edge, dict):
+                continue
+            node = edge.get("node")
+            if not node:
+                continue
+            record = _listing_from_node(node)
+            if record and record["listing_id"] not in seen_ids:
+                seen_ids.add(record["listing_id"])
+                listings.append(record)
+
+    if not listings:
+        listings = _extract_listings_feed_stories(html, seen_ids)
+
+    return listings
 
 
 def parse_steps():
@@ -114,13 +273,13 @@ def get_client():
 
 
 def run_scrape_and_save(client: Hyperbrowser):
-    """When user has profile: scrape TARGET_URL1 with that profile and save full page to files."""
+    """When user has profile: scrape TARGET_URL1, save HTML for inspection, then extract listings to JSON."""
     session_options = CreateSessionParams(
         profile=CreateSessionProfile(id=PROFILE_ID, persist_changes=False),
     )
     scrape_options_kw = {
         "only_main_content": False,
-        "formats": ["markdown", "html"],
+        "formats": ["html"],
     }
     scrape_params_kw = {
         "url": TARGET_URL1,
@@ -139,39 +298,24 @@ def run_scrape_and_save(client: Hyperbrowser):
         return
 
     data = getattr(result, "data", None)
-    if not data:
-        print("No scrape data in response.")
+    html = getattr(data, "html", None) if data else None
+    if not html:
+        print("No HTML in scrape response.")
         return
 
     out_dir = Path(SCRAPE_OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base = out_dir / f"scrape_{ts}"
 
-    saved = []
-    if getattr(data, "markdown", None):
-        path = base.with_suffix(".md")
-        path.write_text(data.markdown, encoding="utf-8")
-        saved.append(str(path))
-    if getattr(data, "html", None):
-        path = base.with_name(base.name + "_html").with_suffix(".html")
-        path.write_text(data.html, encoding="utf-8")
-        saved.append(str(path))
-    if getattr(data, "metadata", None):
-        meta_path = base.with_name(base.name + "_metadata").with_suffix(".json")
-        meta = data.metadata
-        if hasattr(meta, "model_dump"):
-            meta = meta.model_dump()
-        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-        saved.append(str(meta_path))
+    
 
-    if saved:
-        print("Saved full page content to:")
-        for p in saved:
-            print(f"  {p}")
-        print("You can use these to plan what to properly scrape next.")
-    else:
-        print("No markdown or html in response; check API response.")
+    listings = extract_listings_from_html(html)
+    out_path = out_dir / f"listings_{ts}.json"
+    out_path.write_text(
+        json.dumps({"listings": listings, "count": len(listings)}, indent=2),
+        encoding="utf-8",
+    )
+    print(f"Extracted {len(listings)} listings to {out_path}")
 
 
 def run_task(client: Hyperbrowser, wait: bool):
