@@ -86,7 +86,7 @@ def _find_marketplace_feed_units(obj):
 
 
 def _listing_from_node(node):
-    """Build a flat listing dict from a feed edge node (node.listing)."""
+    """Build a minimal listing dict (listing_id, listing_url) from a feed edge node (node.listing)."""
     listing = node.get("listing") if isinstance(node, dict) else None
     if not listing or not isinstance(listing, dict):
         return None
@@ -95,38 +95,9 @@ def _listing_from_node(node):
     if not listing_id:
         return None
 
-    location = ""
-    loc = listing.get("location") or {}
-    if isinstance(loc, dict):
-        rg = loc.get("reverse_geocode") or {}
-        if isinstance(rg, dict):
-            city_page = rg.get("city_page") or {}
-            if isinstance(city_page, dict) and city_page.get("display_name"):
-                location = city_page["display_name"]
-            else:
-                city = rg.get("city") or ""
-                state = rg.get("state") or ""
-                location = f"{city}, {state}".strip(", ") if city or state else ""
-
-    price_obj = listing.get("listing_price") or {}
-    price = price_obj.get("formatted_amount", "") if isinstance(price_obj, dict) else ""
-
-    seller_obj = listing.get("marketplace_listing_seller") or {}
-    seller_name = seller_obj.get("name", "") if isinstance(seller_obj, dict) else ""
-
-    subtitle = ""
-    sub_titles = listing.get("custom_sub_titles_with_rendering_flags") or []
-    if isinstance(sub_titles, list) and sub_titles and isinstance(sub_titles[0], dict):
-        subtitle = sub_titles[0].get("subtitle") or ""
-
     return {
-        "listing_url": f"{LISTING_BASE_URL}{listing_id}/",
         "listing_id": str(listing_id),
-        "name": listing.get("marketplace_listing_title") or listing.get("custom_title") or "",
-        "location": location,
-        "price": price,
-        "seller_name": seller_name,
-        "subtitle": subtitle,
+        "listing_url": f"{LISTING_BASE_URL}{listing_id}/",
     }
 
 
@@ -237,8 +208,7 @@ def build_task(steps: list[str], use_login: bool) -> str:
    - Email: {EMAIL}
    - Password: {PASSWORD}
 5. Click the login/sign-in button
-6. Wait for the login process to complete
-8. After clicking login button wait for 4 minutes then close.
+6. After clicking login button wait for 5 minutes then close.
 """
         step_start = 9
     else:
@@ -346,6 +316,8 @@ def run_task(client: Hyperbrowser, wait: bool):
                 id=created_profile_id,
                 persist_changes=True,  # Save cookies/login when session ends
             ),
+            use_proxy=True,
+            proxy_country="CA",
         )
     )
     session_id = session.id
