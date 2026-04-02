@@ -13,7 +13,7 @@ Usage:
   HYPERBROWSER_API_KEY (required)
   TARGET_URL (login page; default: https://www.entreaseai.com/)
   TARGET_URL1 (page to scrape when profile set; default: Facebook Marketplace vehicles)
-  LOGIN_EMAIL or FACEBOOK_EMAIL, LOGIN_PASSWORD or FACEBOOK_PASSWORD (when no profile)
+  LOGIN_EMAIL or FACEBOOK_EMAIL, LOGIN_PASSWORD or FACEBOOK_PASSWORD (optional; for mask_inputs when no profile)
   HYPERBROWSER_FACEBOOK_PROFILE_ID or PROFILE_ID (optional; leave empty for first run)
   SCRAPE_OUTPUT_DIR (optional; directory for listings JSON; default: current directory)
 """
@@ -203,12 +203,8 @@ def build_task(steps: list[str], use_login: bool) -> str:
     if use_login:
         task = f"""1. Navigate to {TARGET_URL}
 2. Wait for the page to load completely
-3. Look for a login form or sign-in button
-4. If you see a login form, enter the following credentials:
-   - Email: {EMAIL}
-   - Password: {PASSWORD}
-5. Click the login/sign-in button
-6. After clicking login button wait for 5 minutes then close.
+
+3. After loading the page wait for 5 minutes then close.
 """
         step_start = 9
     else:
@@ -295,9 +291,6 @@ def run_task(client: Hyperbrowser, wait: bool):
 
     steps = parse_steps()
     use_login = True
-    if not EMAIL or not PASSWORD:
-        print("Error: LOGIN_EMAIL (or FACEBOOK_EMAIL) and LOGIN_PASSWORD (or FACEBOOK_PASSWORD) must be set in .env when PROFILE_ID is empty.")
-        sys.exit(1)
 
     task = build_task(steps, use_login)
 
@@ -316,8 +309,7 @@ def run_task(client: Hyperbrowser, wait: bool):
                 id=created_profile_id,
                 persist_changes=True,  # Save cookies/login when session ends
             ),
-            use_proxy=True,
-            proxy_country="CA",
+            keep_alive=True,
         )
     )
     session_id = session.id
@@ -327,7 +319,7 @@ def run_task(client: Hyperbrowser, wait: bool):
         "max_steps": 40,
         "session_id": session_id,
     }
-    if use_login:
+    if use_login and EMAIL and PASSWORD:
         kwargs["mask_inputs"] = {"x_user": EMAIL, "x_pass": PASSWORD}
 
     params = StartBrowserUseTaskParams(**{k: v for k, v in kwargs.items() if v is not None})
